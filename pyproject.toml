@@ -1,0 +1,48 @@
+[project]
+name = "django-eventsourcing-winemaking"
+version = "0.1.0"
+description = "An example Django application implementing winemaking concepts using a mutable event stream."
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "django>=5.2.4",
+    "django-pydantic-field>=0.3.13",
+    "django-typed-models>=0.14.0",
+    "psycopg[binary]>=3.2.9",
+    "pydantic>=2.11.7",
+    "python-ulid>=3.0.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest-django>=4.11.1",
+    "ruff>=0.12.11",
+]
+
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "framework.settings"
+python_files = ["**/test_*.py"]
+pythonpath = ["src"]
+addopts = "--reuse-db"
+
+
+[tool.ruff]
+
+line-length = 128
+target-version = "py313"
+src = ["src"]
+
+[tool.ruff.lint]
+extend-select = [
+    "I",  # isort
+    "TID252",  # prefer using absolute over relative imports
+]
+
+[tool.ruff.lint.isort]
+force-single-line = true
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
