@@ -9,7 +9,10 @@ the world of winemaking to help our users run healthier wine businesses, then co
 
 This project demonstrates how our team at InnoVint has used the Django ORM to implement a mutable event sourcing system.
 
-The domain concepts here are simplified for the sake of brevity and to focus on the ideas of the event sourcing system.
+The domain concepts and some technical implementations here are simplified for the sake of brevity and to focus on the
+ideas of the event sourcing system.
+
+If there are any questions about the project, please use the "Discussions" feature to reach out.
 
 ## Running the Project
 
@@ -33,7 +36,6 @@ To run the tests
 ```bash
 uv run pytest
 ```
-
 
 ## Core Event Sourcing Concepts
 
@@ -321,7 +323,7 @@ def edit_action(edited_action: Action):
     aggregates = WineLot.objects.filter(id__in=edited_action.involved_wine_lot_ids).only("id")
     
     # This helper function will load the state of the aggregates at the time just before the edited action, and it will
-    # also mark that were created by the original version of the edited action for deletion in the AggregateRepository.
+    # also mark events that were created by the original version of the edited action for deletion in the AggregateRepository.
     aggregates_by_id = load_editable_aggregates_at_time_and_point(
         aggregates, 
         occurred_at=edited_action.effective_at, 
