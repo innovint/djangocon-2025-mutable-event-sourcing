@@ -418,3 +418,102 @@ def backdate_action(action: Action):
             sequence_number=action.id,
         )
 ```
+
+## Bonus Features
+
+These are features that were not covered at DjangoCon because of time constraints that are included in this project.
+
+### Optimistic Locking
+
+With many concurrent users interacting with the system, our team found it, at times, critical to ensure users did not
+step on each others' toes and create inconsistent data.
+
+To support this, the `AggregateModel` and `AggregateRepository` together implement an optimistic locking pattern. This is
+accomplished by using a custom `persist` function on the `AggregateModel` instead of the standard `save` Django ORM
+function. This function handles both checking that the in-memory version of the aggregate matches the database and
+increments the version.
+
+This `persist` function uses a filter, `filter(pk=self.pk, version=current_version)`, on the normal `update` call to only
+allow for updating the aggregate if the version of the aggregate in memory matches the version in the database. In this
+way, our system can choose to enforce the optimistic lock or not by setting the version of the aggregate in memory.
+For example, an API request into the system to update a `WineLot`'s code might look like
+
+```json
+{
+  "code": "NEW-CODE",
+  "version": 4
+}
+```
+
+In our code we can proactively check that the version matches the user expectations. This assists us in failing fast
+if we want to enforce the optimistic lock.
+
+```python
+from winemaking.models import WineLot
+
+def update_code(id: str, code: str, version: int) -> WineLot:
+    lot = WineLot.objects.get(id=id)
+
+    lot.confirm_version(version)  # Throws an error if there is a mismatch
+
+    # a fake method
+    lot.update(code)
+
+    return lot
+```
+
+If two users both attempt to alter the same aggregate at the _exact_ same time, though, we will also see a failure from
+the `AggregateRepository.persist` layer, since both will pull out the aggregate with the same version from the database
+but one of them will try to write back to the database after the other, and the version will be incremented already by
+the other request.
+
+### In-Memory PubSub
+
+Event sourcing lends itself to other event-driven architectures as well, and our team makes use those as well.
+
+In this project, we have included a simple implementation of a PubSub notification bus that has served us well so far
+in decoupling contexts well. This can be considered similar to the Django `signals` feature, but with different
+semantics.
+
+First, we call this a "notification" bus to help differentiate it from signals and also from "events." We implement
+`Subscriber` instances that can receive any number of types of `Notification` instances and implement ways to
+respond to these.
+
+The `AggregateEvent` base class for all of our event sourcing aggregate events extends `Notification`, and our
+`AggregateRepository` automatically dispatches each of these onto the `NotificationBus` during the call the `persist`,
+after persisting the new versions of the aggregates and events to the database.
+
+The notification -> subscriber relationships are defined explicitly as in the Django settings using the
+`BUSES_NOTIFICATION_SUBSCRIBERS` key and providing a dictionary of FQDN for notifications to subscribers.
+
+This pubsub pattern is helpful for triggering secondary effects. For, example, we could create a `Subscriber` that
+listens for the `VolumeBlended` event from our `WineLot` and builds a custom read model, using the same logic as defined
+in the `calculate_composition` use case, to build a new `LotComposition` read model that is stored into the database as
+a point in time Django model. Going one step further, we could use this subscriber to instead tigger a `task`, using
+something like Celery or Django's upcoming implementations, to allow for this slower because to occur asynchronously.
+
+## Future Concepts
+
+### Snapshotting
+
+Snapshotting is a concept common in many event sourcing frameworks. The idea is that the cost of calculating the state
+of an aggregate can become expensive as the number of events goes above a few thousand per aggregate.
+
+So, instead of having to replay all the events, the system takes a "snapshot" of the aggregate's state at regular intervals.
+The state of the aggregate can then be calculated by taking that snapshot and only replaying those events back on top of them.
+
+Our team has a number of thoughts on how we would like to accomplish this, and how we would leverage it. However, as is
+often the case in the real world, we had to pick and choose what we were implementing. We recognized that the system
+was much heavier on the read side than the write side. Combined with the fact that the current state of the aggregate
+is held in a Django model already, we determined snapshotting would not meaningfully help our users for some
+time. We focused instead of implementing eventually consistent read models to support point-in-time sorting and filtering,
+and we plan to return to supporting snapshots in a future iteration.
+
+### Improving N+1 Persist Behaviors
+
+As noted in the [In-Memory PubSub](#in-memory-pubsub) section, we have overwritten the `save` function of our `AggregateModel`
+base class with a custom implementation for optimistic locking. A downside of this is that we lose access to the
+`bulk_create` and `bulk_update` operations. So far, we have not found this to be too much of a burden, interacting with
+200-300 aggregates per request. However, our team is aware of this scaling risk and would like to tackle it in the near
+future to make this work on a per-aggregate-type instead of on a per-aggregate, so make the `persist` scale by aggregate
+type in the request instead of by the number of aggregates.
