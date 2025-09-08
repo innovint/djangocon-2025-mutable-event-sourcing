@@ -1,5 +1,12 @@
 # Winemaking with Django and Mutable Event Sourcing
 
+**We're hiring!**
+
+We are looking for an experienced engineer to join our team. If this project is exciting to you, and you want to dive into
+the world of winemaking to help our users run healthier wine businesses, then come join us!
+
+**[Careers at InnoVint](https://innovint.us/careers)**
+
 This project demonstrates how our team at InnoVint has used the Django ORM to implement a mutable event sourcing system.
 
 The domain concepts here are simplified for the sake of brevity and to focus on the ideas of the event sourcing system.
