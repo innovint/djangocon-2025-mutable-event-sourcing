@@ -69,6 +69,8 @@ def edit_receive_volume(action_id: str, lot_id: str, volume: Decimal) -> Action:
     for to_replay in lots_by_id.values():
         reapply_downstream_events_from(aggregate=to_replay, occurred_at=action.effective_at, sequence_number=action.id)
 
+    return action
+
 
 def _process_action(action: Action, lot: WineLot):
     data = cast(ReceiveVolumeData, action.details.data)
